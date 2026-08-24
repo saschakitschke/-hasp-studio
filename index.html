@@ -24,7 +24,7 @@ label{display:grid;gap:5px;margin-bottom:10px;color:var(--muted);font-size:12px}
 </style>
 </head>
 <body>
-<header><div><small>openHASP Editor</small><h1>HASP Studio</h1></div><div><button onclick="save()">Speichern</button><button class="primary" onclick="exportJSONL()">JSONL</button></div></header>
+<header><div><small>openHASP Editor · v0.3</small><h1>HASP Studio</h1></div><div><button onclick="save()">Speichern</button><button class="primary" onclick="exportJSONL()">JSONL</button></div></header>
 <main>
 <section class="panel">
 <h2>Seiten</h2><div id="pages" class="pages"></div><button style="margin-top:9px;width:100%" onclick="addPage()">+ Seite</button><hr>
@@ -40,10 +40,15 @@ label{display:grid;gap:5px;margin-bottom:10px;color:var(--muted);font-size:12px}
 <label>Aktives Panel<select id="deviceSelect" onchange="selectDevice(this.value)"></select></label>
 <div class="row"><button onclick="addDevice()">+ Panel</button><button class="danger" onclick="deleteDevice()">Panel löschen</button></div>
 <label>Name<input id="deviceName" placeholder="panel"></label><label>Hostname<input id="deviceHost" placeholder="panel.local"></label><label>Fallback-IP<input id="deviceIp" placeholder="192.168.1.50"></label>
-<div class="switchrow"><span><b>Automatisch suchen</b><br><small>Hostname zuerst, IP als Fallback</small></span><input id="deviceAuto" type="checkbox" checked></div>
-<button onclick="saveDeviceFields()" style="width:100%">Panel speichern</button><button onclick="openDevice()" style="width:100%;margin-top:8px">openHASP WebUI öffnen</button>
+<div class="switchrow"><span><b>Hostname bevorzugen</b><br><small>Standard ist der Name, z. B. panel.local</small></span><input id="deviceAuto" type="checkbox" checked></div>
+<button onclick="saveDeviceFields()" style="width:100%">Panel speichern</button>
+<div class="row" style="margin-top:8px">
+  <button onclick="openDeviceHost()">Hostname öffnen</button>
+  <button onclick="openDeviceIp()">Fallback-IP öffnen</button>
+</div>
+<div class="hint">GitHub Pages läuft über HTTPS. Safari kann lokale HTTP-Seiten öffnen, aber die Webseite kann einen fehlgeschlagenen Hostnamen nicht zuverlässig erkennen und automatisch auf die IP umschalten. Die echte automatische Umschaltung kommt mit der Geräte-Bridge.</div>
 <hr><h2>WLAN-Netze</h2><div id="wifiList"></div>
-<button onclick="scanNetworks()" style="width:100%">Netzwerke scannen</button><div class="hint" id="scanHint">Der Scan soll vom Panel ausgeführt werden. Browser allein dürfen auf iPhone keine WLAN-Umgebung scannen.</div>
+<button onclick="scanNetworks()" style="width:100%">Panel-WLAN-Scan</button><div class="hint" id="scanHint">Der Scan soll vom Panel ausgeführt werden. Browser allein dürfen auf iPhone keine WLAN-Umgebung scannen.</div>
 <hr><label>SSID<input id="wifiSsid" placeholder="HomeWiFi"></label><label>Passwort<input id="wifiPass" type="password" placeholder="••••••••"></label><div class="row"><label>Priorität<input id="wifiPriority" type="number" value="10"></label><label>Aktiv<select id="wifiEnabled"><option value="1">Ja</option><option value="0">Nein</option></select></label></div><button onclick="addWifi()" style="width:100%">Netzwerk speichern</button>
 <hr><h2>Synchronisierung</h2><div class="switchrow"><span><b>WLAN-Sync</b><br><small>Netzwerk-Pool für alle Panels</small></span><input id="syncWifi" type="checkbox" checked onchange="saveSync()"></div><div class="switchrow"><span><b>Bluetooth-Sync</b><br><small>für Einrichtung ohne WLAN</small></span><input id="syncBle" type="checkbox" onchange="saveSync()"></div><button onclick="exportNetworkBundle()" style="width:100%">Netzwerk-Paket exportieren</button><div class="hint">Mehrere WLANs werden in HASP Studio gespeichert. Stock-openHASP kann derzeit nur ein aktives SSID/Passwort-Paar direkt übernehmen; echter Mehrnetz-/BLE-Abgleich braucht eine kleine Geräte-Erweiterung.</div>
 <hr><label>JSONL importieren<input id="importFile" type="file" accept=".jsonl,.txt"></label>
@@ -77,10 +82,12 @@ function selectDevice(id){project.activeDevice=id;save(false);renderDevices()}
 function addDevice(){let n=project.devices.length+1,id='panel-'+Date.now();project.devices.push({id,name:n===1?'panel':'panel'+n,host:n===1?'panel.local':'panel'+n+'.local',ip:'',auto:true});project.activeDevice=id;save(false);renderDevices();toast('Panel angelegt')}
 function deleteDevice(){if(project.devices.length<=1){toast('Mindestens ein Panel behalten');return}project.devices=project.devices.filter(d=>d.id!==project.activeDevice);project.activeDevice=project.devices[0].id;save(false);renderDevices();toast('Panel gelöscht')}
 function saveDeviceFields(){let d=device();d.name=deviceName.value.trim()||'panel';d.host=deviceHost.value.trim();d.ip=deviceIp.value.trim();d.auto=deviceAuto.checked;save(false);renderDevices();toast('Panel gespeichert')}
-function openDevice(){saveDeviceFields();let d=device(),target=(d.auto&&d.host)?d.host:(d.ip||d.host);if(!target){toast('Hostname oder IP eintragen');return}if(!/^https?:\/\//i.test(target))target='http://'+target;window.open(target,'_blank')}
+function openLocalTarget(target,label){if(!target){toast(label+' fehlt');return}if(!/^https?:\/\//i.test(target))target='http://'+target;window.open(target,'_blank')}
+function openDeviceHost(){saveDeviceFields();let d=device();openLocalTarget(d.host,'Hostname')}
+function openDeviceIp(){saveDeviceFields();let d=device();openLocalTarget(d.ip,'Fallback-IP')}
 function renderWifi(){wifiList.innerHTML='';if(!project.networks.length){wifiList.innerHTML='<small>Noch keine Netzwerke gespeichert.</small>';return}project.networks.slice().sort((a,b)=>a.priority-b.priority).forEach(n=>{let c=document.createElement('div');c.className='card';c.innerHTML='<div class="cardline"><div><b>'+esc(n.ssid)+'</b><br><small>Priorität '+n.priority+' · '+(n.enabled?'aktiv':'aus')+'</small></div><button class="danger">×</button></div>';c.querySelector('button').onclick=()=>{project.networks=project.networks.filter(x=>x.id!==n.id);save(false);renderWifi()};wifiList.appendChild(c)})}
 function addWifi(){let ssid=wifiSsid.value.trim();if(!ssid){toast('SSID eintragen');return}let existing=project.networks.find(n=>n.ssid===ssid);let data={id:existing?.id||('wifi-'+Date.now()),ssid,password:wifiPass.value,priority:Number(wifiPriority.value)||10,enabled:wifiEnabled.value==='1'};if(existing)Object.assign(existing,data);else project.networks.push(data);wifiSsid.value='';wifiPass.value='';save(false);renderWifi();toast('Netzwerk gespeichert')}
-function scanNetworks(){let d=device();if(!d.host&&!d.ip){toast('Zuerst Panel-Adresse speichern');return}toast('Scan-Hook vorbereitet – Geräte-API folgt');scanHint.textContent='HASP Studio kann den Scan nicht selbst im iPhone-Browser durchführen. Der ESP32 muss die SSIDs liefern; dafür bauen wir als nächsten Schritt die Geräte-Bridge.'}
+function scanNetworks(){let d=device();if(!d.host&&!d.ip){toast('Zuerst Panel-Adresse speichern');return}toast('Geräte-Bridge für WLAN-Scan folgt');scanHint.textContent='HASP Studio kann den Scan nicht selbst im iPhone-Browser durchführen. Der ESP32 muss die SSIDs liefern; dafür bauen wir als nächsten Schritt die Geräte-Bridge.'}
 function saveSync(){project.sync.wifi=syncWifi.checked;project.sync.ble=syncBle.checked;save(false);if(syncBle.checked&&!navigator.bluetooth)toast('Bluetooth im iPhone-Browser nicht direkt verfügbar')}
 function exportNetworkBundle(){save(false);let payload={version:1,created:new Date().toISOString(),networks:project.networks.map(n=>({ssid:n.ssid,password:n.password,priority:n.priority,enabled:n.enabled})),sync:project.sync};download('hasp-networks.json',JSON.stringify(payload,null,2),'application/json');toast('Netzwerk-Paket erstellt')}
 function save(show=true){project.display.width=Number(dw.value)||project.display.width||480;project.display.height=Number(dh.value)||project.display.height||480;localStorage.setItem(STORAGE,JSON.stringify(project));if(show)toast('Projekt gespeichert')}
