@@ -1,2 +1,2 @@
-# -hasp-studio
+hasp-studio
 Home Home Automatisierung
